@@ -178,6 +178,19 @@ Disabling monitoring revokes a permanent grant or ends the temporary helper. Sta
 sampling never ask for a password. The GUI and magpie stay unprivileged.
 Available sources and installation details are in [hardware monitoring](docs/hardware-monitoring.md).
 
+### Fullscreen launcher (Wayland)
+
+`taskmanager-launcher` shows the Task Manager tabs fullscreen above all windows and panels, as a
+start-menu replacement. It is a wlr-layer-shell surface (KDE Plasma, sway, Hyprland and other
+wlroots compositors; not GNOME or X11) on the active screen. The first launch stays resident;
+launching it again shows or hides it, and Esc hides it. Settings are read from Task Manager's
+`config.toml` and never written.
+
+On KDE Plasma, `taskmanager-launcher --install-meta` makes the Meta key toggle the launcher instead
+of the application menu: KWin calls the launcher over D-Bus, and D-Bus starts it on the first
+press. `--uninstall-meta` restores the previous Meta action. Elsewhere, bind
+`taskmanager-launcher` to a key in the compositor's settings.
+
 ### Peripheral batteries
 
 Performance's Batteries page combines UPower with readable batteries from

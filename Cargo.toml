@@ -5,6 +5,7 @@ codegen-units = 1
 [workspace]
 resolver = "2"
 members = [
+    "apps/launcher",
     "apps/taskmanager",
     "crates/mc-core",
     "crates/mc-graph",
@@ -14,6 +15,7 @@ members = [
     "xtask",
 ]
 default-members = [
+    "apps/launcher",
     "apps/taskmanager",
     "crates/mc-core",
     "crates/mc-graph",

@@ -1,0 +1,35 @@
+[package]
+name = "taskmanager-launcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Fullscreen Task Manager launcher (start-menu replacement) on wlr-layer-shell"
+
+[[bin]]
+name = "taskmanager-launcher"
+path = "src/main.rs"
+
+[features]
+default = ["production-logging"]
+production-logging = ["log/release_max_level_warn"]
+
+[dependencies]
+egui.workspace = true
+env_logger.workspace = true
+log.workspace = true
+mc-core.workspace = true
+mc-magpie.workspace = true
+mc-ui.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+calloop = "0.14"
+calloop-wayland-source = "0.4"
+egui_glow = "0.36.2"
+glow = "0.17"
+glutin = { version = "0.32", default-features = false, features = ["egl", "wayland"] }
+raw-window-handle = "0.6"
+smithay-client-toolkit = "0.20"
+smithay-clipboard = "0.7"
+wayland-client = "0.31"
+zbus = "5.19"
