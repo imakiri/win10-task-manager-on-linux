@@ -42,6 +42,7 @@ macro_rules! cmd_flatpak_host {
 }
 
 // Verbatim copy of the GTK application's IPC client; kept close to upstream on purpose.
+pub mod cgroups;
 #[allow(clippy::all)]
 mod client;
 mod fixture;

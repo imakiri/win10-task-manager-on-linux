@@ -54,6 +54,7 @@ pub enum Phase {
     GatherCycle,
     Processes,
     Users,
+    Cgroups,
     Sockets,
     Apps,
     Disks,

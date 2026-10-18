@@ -71,6 +71,9 @@ pub struct Readings {
     /// Owner of each process (`pid → user name`), read from `/proc` by the gatherer
     #[serde(default)]
     pub process_users: HashMap<u32, String>,
+    /// Control group of each process (`pid → cgroup v2 path`), read from `/proc` by the gatherer
+    #[serde(default)]
+    pub process_cgroups: HashMap<u32, String>,
     /// Per-process network usage could not be measured (netlink `sock_diag` unavailable). When
     /// available it counts TCP traffic of the user's own processes only (see `sockets`).
     #[serde(default)]
@@ -106,6 +109,7 @@ impl Readings {
             running_apps: HashMap::new(),
             running_processes: HashMap::new(),
             process_users: HashMap::new(),
+            process_cgroups: HashMap::new(),
             network_unavailable: false,
 
             user_services: HashMap::new(),
@@ -615,6 +619,7 @@ fn gather_from_magpie(ctx: ThreadCtx) {
     let mem_devices = magpie.memory_devices();
     let mut known_icons = HashSet::<String>::new();
     let mut users = crate::users::UserResolver::default();
+    let cgroups = crate::cgroups::CgroupReader::default();
     let mut sockets = crate::sockets::SocketTraffic::default();
     let mut hardware_sample: Option<crate::hardware_worker::Sample> = None;
     let mut trimmer = crate::footprint::Trimmer::new();
@@ -649,6 +654,12 @@ fn gather_from_magpie(ctx: ThreadCtx) {
                 sockets.sample(&mut readings.running_processes)
             );
             readings.running_apps = timed!("Running apps", Apps, magpie.apps());
+            // After the apps: their scopes exist by now
+            readings.process_cgroups = timed!(
+                "Process cgroups",
+                Cgroups,
+                cgroups.read(&readings.running_processes)
+            );
         }
 
         let disks = timed!("Disks info", Disks, magpie.disks_snapshot());
