@@ -40,6 +40,8 @@ use crate::i18n::i18n;
 pub enum RowKind {
     SectionHeader,
     App,
+    /// A control group inside an app (its unit under `app.slice`, or a nested group)
+    Cgroup,
     Process,
     Service,
 }
@@ -113,7 +115,7 @@ pub struct Node {
     pub includes_descendants: bool,
     pub gpu: GpuStats,
     pub service: Option<ServiceInfo>,
-    /// For app rows: every pid belonging to the app.
+    /// For app and cgroup rows: every pid in the app or group (nested groups included).
     pub app_pids: Vec<u32>,
     pub children: Vec<usize>,
 }
@@ -469,6 +471,68 @@ impl Tree {
         Some(index)
     }
 
+    /// Rows under an app mirror its control groups: the unit under `app.slice`, nested groups,
+    /// and in each group its processes with their own usage. Processes outside `app.slice` (apps
+    /// matched by their executable) go directly under the app. Group rows sum their contents.
+    fn add_cgroups(
+        &mut self,
+        readings: &Readings,
+        app: usize,
+        app_key: &str,
+        pids: &[u32],
+        icon: &RowIcon,
+    ) {
+        let mut pids = pids.to_vec();
+        pids.sort_unstable();
+        pids.dedup();
+        for pid in pids {
+            let Some(process) = readings.running_processes.get(&pid) else {
+                continue;
+            };
+            let groups: Vec<&str> = readings
+                .process_cgroups
+                .get(&pid)
+                .and_then(|path| path.split_once("/app.slice/"))
+                .map(|(_, units)| units.split('/').filter(|g| !g.is_empty()).collect())
+                .unwrap_or_default();
+            let mut parent = app;
+            let mut key = app_key.to_owned();
+            self.nodes[app].stats.merge(&process.usage_stats);
+            for group in groups {
+                key = format!("{key}/c{group}");
+                let existing = self.nodes[parent]
+                    .children
+                    .iter()
+                    .copied()
+                    .find(|&c| self.nodes[c].key == key);
+                parent = match existing {
+                    Some(index) => index,
+                    None => {
+                        let mut node = Node::new(key.clone(), RowKind::Cgroup, 0, group.to_owned());
+                        node.icon = icon.clone();
+                        let index = self.push(node);
+                        self.nodes[parent].children.push(index);
+                        index
+                    }
+                };
+                self.nodes[parent].stats.merge(&process.usage_stats);
+                self.nodes[parent].app_pids.push(pid);
+            }
+            let mut node = Node::new(
+                format!("{key}/p{pid}"),
+                RowKind::Process,
+                0,
+                pretty_process_name(process),
+            );
+            node.pid = pid;
+            node.command_line = process.cmd.join(" ");
+            node.stats = process.usage_stats;
+            node.icon = icon.clone();
+            let index = self.push(node);
+            self.nodes[parent].children.push(index);
+        }
+    }
+
     /// Builds the Apps page tree: an "Apps" section and a "Processes" section.
     pub fn apps(readings: &Readings) -> Self {
         let mut tree = Tree::default();
@@ -534,26 +598,14 @@ impl Tree {
             node.app_pids = app.pids.clone();
             node.pid = primary[0];
 
-            let mut usage_stats = ProcessUsageStats::default();
-            for process in primary.iter().filter_map(|pid| process_map.get(pid)) {
-                usage_stats.merge(&process.merged_usage_stats(process_map));
-            }
-            node.stats = usage_stats;
-
             let index = tree.push(node);
-            for pid in &primary {
-                if let Some(c) = tree.add_process(
-                    process_map,
-                    *pid,
-                    &key,
-                    0,
-                    &RowIcon::App(app.id.clone()),
-                    &app_icons,
-                    0,
-                ) {
-                    tree.nodes[index].children.push(c);
-                }
-            }
+            tree.add_cgroups(
+                readings,
+                index,
+                &key,
+                &app.pids,
+                &RowIcon::App(app.id.clone()),
+            );
             tree.nodes[apps_header].children.push(index);
         }
 
@@ -648,8 +700,10 @@ impl Tree {
                     .unwrap_or_else(|| gpu.aggregate([node.pid]));
                 continue;
             }
-            // Apps and services, and processes in the process tree, include descendants
-            let mut pending = if node.kind == RowKind::App {
+            // App and cgroup rows: their members (as the cgroups); services and processes in
+            // the process tree: with their descendants
+            let members = matches!(node.kind, RowKind::App | RowKind::Cgroup);
+            let mut pending = if members {
                 node.app_pids.clone()
             } else {
                 vec![node.pid]
@@ -657,6 +711,7 @@ impl Tree {
             let mut pids = HashSet::new();
             while let Some(pid) = pending.pop() {
                 if pids.insert(pid)
+                    && !members
                     && let Some(process) = readings.running_processes.get(&pid)
                 {
                     pending.extend(process.children.iter().copied());
@@ -1100,9 +1155,10 @@ mod tests {
 
         let firefox = &tree.nodes[apps.children[0]];
         assert_eq!(firefox.kind, RowKind::App);
-        // merged usage of the primary process 10 (5 + 2 + 3)
+        // usage of the app's processes 10, 11 and 12 (5 + 2 + 3)
         assert!((firefox.stats.cpu_usage - 10.).abs() < 1e-4);
-        assert_eq!(firefox.children.len(), 1);
+        // without cgroup information, flat under the app
+        assert_eq!(firefox.children.len(), 3);
     }
 
     #[test]
@@ -1113,6 +1169,40 @@ mod tests {
         assert_eq!(firefox.stats.memory_usage, 10_000 + 11_000 + 12_000);
         let leaf = &tree.nodes[tree.find_by_key("processes/p10/p11").unwrap()];
         assert!((leaf.stats.cpu_usage - 2.).abs() < 1e-4);
+    }
+
+    #[test]
+    fn app_rows_mirror_their_cgroups() {
+        let mut r = readings();
+        let scope = "/user.slice/user-1000.slice/user@1000.service/app.slice/app-firefox-1.scope";
+        r.process_cgroups.insert(10, scope.into());
+        r.process_cgroups.insert(11, format!("{scope}/sub"));
+        // 12 has no app.slice cgroup (e.g. matched by its executable): directly under the app
+        r.process_cgroups
+            .insert(12, "/user.slice/user-1000.slice/session-2.scope".into());
+        let tree = Tree::apps(&r);
+        let node = |key: &str| &tree.nodes[tree.find_by_key(key).unwrap()];
+
+        let firefox = node("apps/aorg.mozilla.firefox");
+        assert!((firefox.stats.cpu_usage - 10.).abs() < 1e-4);
+        assert_eq!(firefox.children.len(), 2);
+
+        let unit = node("apps/aorg.mozilla.firefox/capp-firefox-1.scope");
+        assert_eq!(unit.kind, RowKind::Cgroup);
+        assert_eq!(unit.name, "app-firefox-1.scope");
+        // 10 (5) and the nested group's 11 (2)
+        assert!((unit.stats.cpu_usage - 7.).abs() < 1e-4);
+        assert_eq!(unit.app_pids, vec![10, 11]);
+
+        let sub = node("apps/aorg.mozilla.firefox/capp-firefox-1.scope/csub");
+        assert!((sub.stats.cpu_usage - 2.).abs() < 1e-4);
+
+        // Processes in a group are flat, with their own usage only
+        let main = node("apps/aorg.mozilla.firefox/capp-firefox-1.scope/p10");
+        assert_eq!(main.kind, RowKind::Process);
+        assert!((main.stats.cpu_usage - 5.).abs() < 1e-4);
+        assert!(main.children.is_empty());
+        assert!(tree.find_by_key("apps/aorg.mozilla.firefox/p12").is_some());
     }
 
     #[test]

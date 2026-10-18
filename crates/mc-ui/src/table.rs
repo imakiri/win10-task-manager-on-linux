@@ -315,27 +315,10 @@ impl TableView {
         let node = &self.tree.nodes[index];
         match node.kind {
             RowKind::Process => vec![node.pid],
-            RowKind::App => node
-                .children
-                .iter()
-                .map(|&c| self.find_stoppable_child(c))
-                .collect(),
+            // Every process in the app or group, as stopping its cgroup would
+            RowKind::App | RowKind::Cgroup => node.app_pids.clone(),
             RowKind::Service if node.pid != 0 => vec![node.pid],
             _ => vec![],
-        }
-    }
-
-    /// Descends past `bwrap` sandbox wrappers (as the GTK `find_stoppable_child`).
-    fn find_stoppable_child(&self, mut index: usize) -> u32 {
-        loop {
-            let node = &self.tree.nodes[index];
-            if node.name == "bwrap"
-                && let Some(&first) = node.children.first()
-            {
-                index = first;
-                continue;
-            }
-            return node.pid;
         }
     }
 
@@ -406,7 +389,7 @@ impl TableView {
 
     pub fn process_action(&self, make: fn(Vec<u32>) -> Request) -> Option<Command> {
         let node = self.selected_node()?;
-        if !matches!(node.kind, RowKind::App | RowKind::Process) {
+        if !matches!(node.kind, RowKind::App | RowKind::Cgroup | RowKind::Process) {
             return None;
         }
         let pids = self.selected_pids();

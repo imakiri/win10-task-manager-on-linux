@@ -384,15 +384,17 @@ fn process_details(ctx: &Context, cx: &mut Cx, node: Option<&mc_core::table::Nod
             RowKind::SectionHeader => i18n("Section Header"),
             RowKind::Service => i18n("Service"),
             RowKind::App => i18n("App"),
+            RowKind::Cgroup => i18n("Control group"),
             RowKind::Process => i18n("Process"),
         };
-        let id_label = if node.kind == RowKind::App {
-            i18n("App ID")
-        } else {
-            i18n("PID")
+        let id_label = match node.kind {
+            RowKind::App => i18n("App ID"),
+            RowKind::Cgroup => i18n("Name"),
+            _ => i18n("PID"),
         };
         let id_value = match node.kind {
             RowKind::App => node.key.trim_start_matches("apps/a").to_owned(),
+            RowKind::Cgroup => node.name.clone(),
             _ => node.pid.to_string(),
         };
         egui::Grid::new("proc-details")

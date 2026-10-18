@@ -265,7 +265,7 @@ impl ProcessesPage {
 
     fn cell_text(table: &TableView, column: Column, node: &Node) -> String {
         match column {
-            Column::Pid if node.kind == RowKind::App => String::new(),
+            Column::Pid if matches!(node.kind, RowKind::App | RowKind::Cgroup) => String::new(),
             // Per-process network data unavailable (no nethogs or no capture permissions)
             Column::Network if table.hide_network => "—".into(),
             _ => Self::usage_text(column, &node.stats)
