@@ -108,6 +108,8 @@ pub struct Node {
     pub command_line: String,
     pub icon: RowIcon,
     pub stats: ProcessUsageStats,
+    /// Process rows with child rows: own usage plus every descendant's (`stats` is own only).
+    pub subtree: Option<ProcessUsageStats>,
     pub gpu: GpuStats,
     pub service: Option<ServiceInfo>,
     /// For app rows: every pid belonging to the app.
@@ -126,6 +128,7 @@ impl Node {
             command_line: String::new(),
             icon: RowIcon::None,
             stats: ProcessUsageStats::default(),
+            subtree: None,
             gpu: GpuStats::default(),
             service: None,
             app_pids: vec![],
@@ -453,6 +456,14 @@ impl Tree {
             ) {
                 self.nodes[index].children.push(c);
             }
+        }
+        if !self.nodes[index].children.is_empty() {
+            let mut subtree = self.nodes[index].stats;
+            for &child in &self.nodes[index].children {
+                let child = &self.nodes[child];
+                subtree.merge(child.subtree.as_ref().unwrap_or(&child.stats));
+            }
+            self.nodes[index].subtree = Some(subtree);
         }
 
         Some(index)
@@ -1094,6 +1105,19 @@ mod tests {
         // merged usage of the primary process 10 (5 + 2 + 3)
         assert!((firefox.stats.cpu_usage - 10.).abs() < 1e-4);
         assert_eq!(firefox.children.len(), 1);
+    }
+
+    #[test]
+    fn process_rows_with_children_carry_their_subtree_totals() {
+        let tree = Tree::apps(&readings());
+        let firefox = &tree.nodes[tree.find_by_key("processes/p10").unwrap()];
+        // own usage stays the process's own
+        assert!((firefox.stats.cpu_usage - 5.).abs() < 1e-4);
+        let subtree = firefox.subtree.expect("firefox has children");
+        assert!((subtree.cpu_usage - 10.).abs() < 1e-4);
+        assert_eq!(subtree.memory_usage, 10_000 + 11_000 + 12_000);
+        let leaf = &tree.nodes[tree.find_by_key("processes/p10/p11").unwrap()];
+        assert!(leaf.subtree.is_none());
     }
 
     #[test]

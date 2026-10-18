@@ -29,6 +29,7 @@ use mc_core::table::{
     Column, Node, RowIcon, RowKind, VisibleRow, parse_column_order, serialize_column_order,
 };
 use mc_magpie::Request;
+use mc_magpie::magpie_types::processes::ProcessUsageStats;
 
 use super::listview::{self, ColumnHeader, HeaderKind, ListState};
 use super::paint::{self, Font};
@@ -264,19 +265,34 @@ impl ProcessesPage {
 
     fn cell_text(table: &TableView, column: Column, node: &Node) -> String {
         match column {
-            Column::Cpu => {
-                let v = node.stats.cpu_usage;
-                if v < 0.05 {
-                    "0%".into()
-                } else {
-                    format!("{v:.1}%")
-                }
-            }
             Column::Pid if node.kind == RowKind::App => String::new(),
             // Per-process network data unavailable (no nethogs or no capture permissions)
             Column::Network if table.hide_network => "—".into(),
-            _ => table.cell_text(column, node),
+            _ => match Self::usage_text(column, &node.stats) {
+                // Parents with child rows: own / own and every descendant
+                Some(own) => match node
+                    .subtree
+                    .as_ref()
+                    .and_then(|subtree| Self::usage_text(column, subtree))
+                {
+                    Some(subtree) => format!("{own} / {subtree}"),
+                    None => own,
+                },
+                None => table.cell_text(column, node),
+            },
         }
+    }
+
+    fn usage_text(column: Column, stats: &ProcessUsageStats) -> Option<String> {
+        if column == Column::Cpu {
+            let v = stats.cpu_usage;
+            return Some(if v < 0.05 {
+                "0%".into()
+            } else {
+                format!("{v:.1}%")
+            });
+        }
+        crate::table::stat_text(column, stats)
     }
 
     /// Draws the tab into `content` (between the tab strip and the footer).
@@ -832,6 +848,49 @@ impl ProcessesPage {
 mod tests {
     use super::*;
     use crate::table::TableKind;
+
+    fn tree_table() -> TableView {
+        use mc_magpie::magpie_types::processes::{Process, ProcessUsageStats};
+        let mut readings = mc_magpie::Readings::new();
+        let process = |pid, parent, children: &[u32], cpu, memory| Process {
+            name: format!("p{pid}"),
+            pid,
+            parent,
+            children: children.to_vec(),
+            usage_stats: ProcessUsageStats {
+                cpu_usage: cpu,
+                memory_usage: memory,
+                disk_usage: 1024.,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        for p in [
+            process(1, 0, &[10], 0., 0),
+            process(10, 1, &[11], 1.5, 50 << 20),
+            process(11, 10, &[], 2., 1 << 30),
+        ] {
+            readings.running_processes.insert(p.pid, p);
+        }
+        let mut table = TableView::new(TableKind::Apps, &mut Config::default());
+        table.update(&readings, &Default::default());
+        table
+    }
+
+    #[test]
+    fn parents_show_own_and_subtree_usage() {
+        let table = tree_table();
+        let node = |key| &table.tree.nodes[table.tree.find_by_key(key).unwrap()];
+        let parent = node("processes/p10");
+        let text = |column| ProcessesPage::cell_text(&table, column, parent);
+        assert_eq!(text(Column::Cpu), "1.5% / 3.5%");
+        assert_eq!(text(Column::Memory), "50.0 MiB / 1.05 GiB");
+        assert_eq!(text(Column::Drive), "1 KiB/s / 2 KiB/s");
+        // Leaves have nothing below them
+        let leaf = node("processes/p10/p11");
+        assert_eq!(ProcessesPage::cell_text(&table, Column::Cpu, leaf), "2.0%");
+        assert_eq!(ProcessesPage::cell_text(&table, Column::Pid, parent), "10");
+    }
 
     #[test]
     fn network_summary_is_percent_or_unknown_not_throughput() {

@@ -30,6 +30,7 @@ use mc_core::format::{DataType, to_human_readable_nice};
 use mc_core::table::{
     Column, ColumnTotals, Node, RowIcon, RowKind, Tree, ViewOptions, VisibleRow, toggle_expanded,
 };
+use mc_magpie::magpie_types::processes::ProcessUsageStats;
 use mc_magpie::{Readings, Request};
 
 use crate::cx::{Command, Cx};
@@ -250,11 +251,8 @@ impl TableView {
                 _ => String::new(),
             },
             Column::Cpu => format!("{}%", s.cpu_usage.round() as u32),
-            Column::Memory => to_human_readable_nice(s.memory_usage as f32, &DataType::MemoryBytes),
-            Column::Swap => to_human_readable_nice(s.swap_usage as f32, &DataType::MemoryBytes),
-            Column::Drive => to_human_readable_nice(s.disk_usage, &DataType::DriveBytesPerSecond),
-            Column::Network => {
-                to_human_readable_nice(s.network_usage, &DataType::NetworkBytesPerSecond)
+            Column::Memory | Column::Swap | Column::Drive | Column::Network => {
+                stat_text(column, s).unwrap_or_default()
             }
             Column::Gpu
             | Column::GpuEngine
@@ -430,4 +428,17 @@ pub fn row_icon(ui: &mut Ui, cx: &mut Cx, icon: &RowIcon, size: f32) {
         }
         _ => crate::win10::processes::row_icon(ui.painter(), ui.ctx(), cx, icon, rect),
     }
+}
+
+/// Memory, swap, drive and network usage as shown in the tables.
+pub(crate) fn stat_text(column: Column, s: &ProcessUsageStats) -> Option<String> {
+    Some(match column {
+        Column::Memory => to_human_readable_nice(s.memory_usage as f32, &DataType::MemoryBytes),
+        Column::Swap => to_human_readable_nice(s.swap_usage as f32, &DataType::MemoryBytes),
+        Column::Drive => to_human_readable_nice(s.disk_usage, &DataType::DriveBytesPerSecond),
+        Column::Network => {
+            to_human_readable_nice(s.network_usage, &DataType::NetworkBytesPerSecond)
+        }
+        _ => return None,
+    })
 }
