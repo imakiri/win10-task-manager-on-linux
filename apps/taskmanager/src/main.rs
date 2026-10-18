@@ -463,6 +463,7 @@ fn main() -> eframe::Result {
                     fonts,
                     initial_config: args.memory_preview.then_some(initial),
                     always_on_top_mode,
+                    fullscreen: false,
                 },
             );
             #[cfg(target_os = "linux")]

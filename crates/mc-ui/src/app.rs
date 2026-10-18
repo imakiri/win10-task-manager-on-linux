@@ -47,6 +47,8 @@ use crate::win10::services::ServicesView;
 use crate::win10::{chrome, menu, metrics};
 use crate::{AlwaysOnTopError, AlwaysOnTopMode, AlwaysOnTopRequest, AlwaysOnTopResult};
 
+mod launcher;
+
 pub enum DataSource {
     Magpie,
     Fixture(Vec<Readings>, HashMap<String, Icon>),
@@ -63,6 +65,8 @@ pub struct AppOptions {
     pub initial_config: Option<Config>,
     /// Native shell capability; external window control is acknowledged asynchronously.
     pub always_on_top_mode: AlwaysOnTopMode,
+    /// Launcher mode: tabs and content fill the screen; Tab switches pages, Esc hides.
+    pub fullscreen: bool,
 }
 
 #[derive(Default)]
@@ -146,6 +150,8 @@ pub struct App {
     show_overlay: bool,
     fatal: Option<String>,
     quit: bool,
+    /// Fullscreen launcher mode (`AppOptions::fullscreen`)
+    launcher: Option<launcher::Launcher>,
 }
 
 impl App {
@@ -248,6 +254,7 @@ impl App {
             show_overlay: options.perf_overlay,
             fatal: None,
             quit: false,
+            launcher: options.fullscreen.then(Default::default),
         }
     }
 
@@ -705,6 +712,8 @@ impl App {
         let alt = |k| KeyboardShortcut::new(Modifiers::ALT, k);
         let pressed = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
 
+        self.launcher_shortcuts(ctx);
+
         if pressed(ctrl(Key::Q)) || pressed(ctrl(Key::W)) {
             commands.push(Command::Quit);
         }
@@ -1072,18 +1081,22 @@ impl App {
         );
         root.set_clip_rect(window);
         let ui = &mut root;
-        let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+        let launcher = self.launcher.is_some();
+        // The launcher has no window border to draw or resize
+        let maximized = launcher || ctx.input(|i| i.viewport().maximized.unwrap_or(false));
         chrome::window_background(ui, window, !maximized);
-        let compact = self.config.window_fewer_details;
+        let compact = self.config.window_fewer_details && !launcher;
         let graph_summary = self.page == MainPage::Performance && self.perf.summary_mode;
-        if !graph_summary {
+        if !graph_summary && !launcher {
             chrome::title_bar(ui, window, crate::APP_NAME, maximized);
         }
         if !compact && !graph_summary {
-            let menus = [i18n("File"), i18n("Options"), i18n("View")];
-            chrome::menu_bar(ui, window, &menus, |ui, index| {
-                self.menu(ui, index, &mut commands)
-            });
+            if !launcher {
+                let menus = [i18n("File"), i18n("Options"), i18n("View")];
+                chrome::menu_bar(ui, window, &menus, |ui, index| {
+                    self.menu(ui, index, &mut commands)
+                });
+            }
 
             let labels: Vec<String> = MainPage::ALL.iter().map(|p| p.label()).collect();
             let selected = MainPage::ALL
@@ -1091,7 +1104,7 @@ impl App {
                 .position(|p| *p == self.page)
                 .unwrap_or(0);
             // Applied before the footer and the content are drawn: this pass shows the new page
-            if let Some(index) = chrome::tabs(ui, window, &labels, selected) {
+            if let Some(index) = chrome::tabs(ui, self.chrome_origin(window), &labels, selected) {
                 self.set_page(MainPage::ALL[index]);
             }
         }
@@ -1107,7 +1120,9 @@ impl App {
         } else {
             i18n("More details")
         };
-        if !graph_summary && chrome::details_toggle(ui, window, line_y, &toggle, expanded).clicked()
+        if !graph_summary
+            && !launcher
+            && chrome::details_toggle(ui, window, line_y, &toggle, expanded).clicked()
         {
             self.toggle_fewer_details(&ctx);
         }
@@ -1130,7 +1145,7 @@ impl App {
         } else if compact {
             metrics::TITLE_BOTTOM + 1.
         } else {
-            metrics::CONTENT_TOP
+            metrics::CONTENT_TOP + self.chrome_origin(window).top() - window.top()
         };
         let content = egui::Rect::from_min_max(
             egui::pos2(window.left() + 1., window.top() + content_top),
@@ -1338,6 +1353,7 @@ mod tests {
                     ..Default::default()
                 }),
                 always_on_top_mode: AlwaysOnTopMode::Viewport,
+                fullscreen: false,
             },
         )
     }
@@ -1366,6 +1382,7 @@ mod tests {
                     ..Default::default()
                 }),
                 always_on_top_mode: AlwaysOnTopMode::Viewport,
+                fullscreen: false,
             },
         );
 
@@ -1635,6 +1652,7 @@ mod tests {
                 fonts: Default::default(),
                 initial_config: Some(Config::default()),
                 always_on_top_mode: AlwaysOnTopMode::Viewport,
+                fullscreen: false,
             },
         );
         app.execute(&ctx, Command::SetHardwareAccess(true));
@@ -1687,6 +1705,7 @@ mod tests {
                 fonts: Default::default(),
                 initial_config: Some(Config::default()),
                 always_on_top_mode: AlwaysOnTopMode::Viewport,
+                fullscreen: false,
             },
         );
         app.config.extended_hardware_monitoring = true;
@@ -1769,6 +1788,7 @@ mod tests {
                 fonts: Default::default(),
                 initial_config: Some(Config::default()),
                 always_on_top_mode: AlwaysOnTopMode::Viewport,
+                fullscreen: false,
             },
         );
         app.hardware_state.epoch = 9;
@@ -1805,6 +1825,7 @@ mod tests {
                     ..Default::default()
                 }),
                 always_on_top_mode: AlwaysOnTopMode::External,
+                fullscreen: false,
             },
         );
         let initial = app.take_always_on_top_request().unwrap();
@@ -1879,6 +1900,7 @@ mod tests {
                     ..Default::default()
                 }),
                 always_on_top_mode: AlwaysOnTopMode::Viewport,
+                fullscreen: false,
             },
         );
         app.apply_readings(mc_magpie::synthetic_readings(1, processes));

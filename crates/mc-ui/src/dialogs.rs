@@ -45,6 +45,10 @@ pub struct Dialogs {
 }
 
 impl Dialogs {
+    pub fn is_empty(&self) -> bool {
+        self.open.is_empty()
+    }
+
     pub fn open(&mut self, dialog: Dialog, magpie: &MagpieClient) {
         match &dialog {
             Dialog::AboutSystem => {

@@ -150,6 +150,9 @@ Text placement rule: `cap top` values below; for a 12 px font the cap top is ≈
 - Activation (own design, after the Win32 tab control; not measured): a tab is selected on the
   primary button press, not on release, and the same frame shows the new page with the strip
   already repainted. Presses on an open menu or dialog above the strip do not switch.
+- Fullscreen launcher (own design, not measured): no title bar, menu bar, outer border, "Fewer
+  details" toggle or resize border; the strip and content move up by 50 px (`MENU_LINE_2_Y` − 1),
+  so the selected tab's top border is at y 4, the strip's bottom line at y 26 and content at y 27.
 
 ## Content frame
 - Content starts at y 77. List views have a 1 px `#a0a0a0` frame line on top (Details/Services

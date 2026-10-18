@@ -80,6 +80,9 @@ pub const TAB_CAP_TOP: f32 = 62.;
 pub const TAB_SELECTED_CAP_TOP: f32 = 60.;
 
 pub const CONTENT_TOP: f32 = 77.;
+/// Own design (not measured): the fullscreen launcher has no title or menu bar, so its tab strip
+/// moves up by their height and keeps the same 4 px gap above the selected tab.
+pub const LAUNCHER_CHROME_SHIFT: f32 = MENU_LINE_2_Y - 1.;
 
 /// Footer: the line sits `FOOTER_H` points above the window bottom edge (y 655 at 705)
 pub const FOOTER_H: f32 = 50.;

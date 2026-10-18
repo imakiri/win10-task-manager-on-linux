@@ -62,6 +62,7 @@ fn render_keys(
                             config_path: None,
                             perf_overlay: false,
                             always_on_top_mode: AlwaysOnTopMode::Viewport,
+                            fullscreen: false,
                             fonts: Default::default(),
                             initial_config: Some(Config {
                                 window_selected_page: page.into(),
@@ -372,6 +373,7 @@ fn performance_list_separator_drags() {
                             config_path: None,
                             perf_overlay: false,
                             always_on_top_mode: AlwaysOnTopMode::Viewport,
+                            fullscreen: false,
                             fonts: Default::default(),
                             initial_config: Some(Config {
                                 window_selected_page: "performance-page".into(),
@@ -466,6 +468,7 @@ fn network_header_click_sorts() {
                             config_path: None,
                             perf_overlay: false,
                             always_on_top_mode: AlwaysOnTopMode::Viewport,
+                            fullscreen: false,
                             fonts: Default::default(),
                             initial_config: Some(Config {
                                 window_selected_page: "apps-page".into(),
@@ -533,6 +536,7 @@ fn app_harness(config_path: PathBuf) -> Harness<'static, Option<App>> {
                             config_path: Some(config_path.clone()),
                             perf_overlay: false,
                             always_on_top_mode: AlwaysOnTopMode::Viewport,
+                            fullscreen: false,
                             fonts: Default::default(),
                             initial_config: None,
                         },
@@ -577,6 +581,7 @@ fn performance_harness(
                             config_path: None,
                             perf_overlay: false,
                             always_on_top_mode: AlwaysOnTopMode::Viewport,
+                            fullscreen: false,
                             fonts: Default::default(),
                             initial_config: Some(config.clone()),
                         },

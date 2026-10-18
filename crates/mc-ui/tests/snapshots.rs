@@ -97,6 +97,7 @@ fn render(
                             fonts: Default::default(),
                             initial_config: Some(config),
                             always_on_top_mode: AlwaysOnTopMode::Viewport,
+                            fullscreen: false,
                         },
                     ));
                     if let Some(dialog) = state.dialog.take() {
