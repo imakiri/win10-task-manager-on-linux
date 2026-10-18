@@ -186,10 +186,12 @@ wlroots compositors; not GNOME or X11) on the active screen. The first launch st
 launching it again shows or hides it, and Esc hides it. Settings are read from Task Manager's
 `config.toml` and never written.
 
-On KDE Plasma, `taskmanager-launcher --install-meta` makes the Meta key toggle the launcher instead
-of the application menu: KWin calls the launcher over D-Bus, and D-Bus starts it on the first
-press. `--uninstall-meta` restores the previous Meta action. Elsewhere, bind
-`taskmanager-launcher` to a key in the compositor's settings.
+On KDE Plasma, `support/install-launcher-plasmoid.sh` installs the "Task Manager Launcher" panel
+widget (built from this checkout into `~/.local/bin` when `taskmanager-launcher` is not installed;
+`--build` forces it, `--uninstall` removes everything). Choose it instead of the application menu
+(right click → Show Alternatives): Meta and a click on it then toggle the launcher over D-Bus, and
+D-Bus starts it on the first press (`taskmanager-launcher --install-activation` registers it).
+Elsewhere, bind `taskmanager-launcher` to a key in the compositor's settings.
 
 ### Peripheral batteries
 

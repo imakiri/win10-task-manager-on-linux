@@ -14,7 +14,7 @@ Task Manager: system monitor (processes, CPU, memory, disk, network, GPU, servic
 - `crates/mc-ui/assets/fonts/` — bundled Selawik (SIL OFL 1.1, `OFL.txt`).
 - `crates/mc-ui/assets/icons/` — SVGs carried from Mission Center, embedded by the egui UI.
 - `apps/taskmanager/` — eframe binary `taskmanager` (app id `io.github.taskmanager.TaskManager`, settings `~/.config/taskmanager/config.toml`, copied once from `~/.config/missioncenter/`) (`--fixture`, `--synthetic`, `--dump-readings`, `--renderer wgpu|glow`, `--perf-overlay`, `--bench-seconds`).
-- `apps/launcher/` — binary `taskmanager-launcher`: the fullscreen launcher on wlr-layer-shell (own sctk + glutin + egui_glow loop in `layer/`, `App` with `AppOptions::fullscreen`), single instance `io.github.taskmanager.TaskManager.Launcher` (`Toggle`), Meta on KDE via `kwinrc` + D-Bus activation (`kde.rs`). Settings are read-only.
+- `apps/launcher/` — binary `taskmanager-launcher`: the fullscreen launcher on wlr-layer-shell (own sctk + glutin + egui_glow loop in `layer/`, `App` with `AppOptions::fullscreen`), single instance `io.github.taskmanager.TaskManager.Launcher` (`Toggle`), D-Bus activation file (`activation.rs`). Settings are read-only. Plasma widget `data/plasmoid/io.github.taskmanager.launcher/` (a launcher menu, so it gets Meta) calls `Toggle`; `support/install-launcher-plasmoid.sh` installs both.
 - `xtask/` — dev/packaging tasks (`cargo xtask help`).
 - `docs/port-spec/` — frozen historical GTK specs (msgids, formats, behaviours); source-history links are in their headers.
 - `docs/win10-spec/` — clean-room visual spec (`spec.md`) and pixel probes (`probes.json`); `tools/measure_refs.py` reproduces the measurements from local screenshots in `references/` (git-ignored, never committed).

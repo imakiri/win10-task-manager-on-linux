@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "Mission Center Developers" }],
+        "Category": "Application Launchers",
+        "Description": "Shows or hides the fullscreen Task Manager launcher (Meta or a click)",
+        "FormFactors": ["desktop"],
+        "Icon": "io.github.taskmanager.TaskManager",
+        "Id": "io.github.taskmanager.launcher",
+        "License": "GPL-3.0-or-later",
+        "Name": "Task Manager Launcher"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-Provides": ["org.kde.plasma.launchermenu"]
+}

@@ -7,9 +7,9 @@
 //! Settings are read from the windowed Task Manager's `config.toml` and never written.
 
 #[cfg(target_os = "linux")]
-mod instance;
+mod activation;
 #[cfg(target_os = "linux")]
-mod kde;
+mod instance;
 #[cfg(target_os = "linux")]
 mod layer;
 
@@ -47,11 +47,11 @@ fn main() {
             "--perf-overlay" => perf_overlay = true,
             // Started by D-Bus activation: the Toggle call that started it shows it
             "--hidden" => hidden = true,
-            "--install-meta" | "--uninstall-meta" => {
-                let result = if arg == "--install-meta" {
-                    kde::install()
+            "--install-activation" | "--uninstall-activation" => {
+                let result = if arg == "--install-activation" {
+                    activation::install()
                 } else {
-                    kde::uninstall()
+                    activation::uninstall()
                 };
                 if let Err(error) = result {
                     eprintln!("{error}");
@@ -62,7 +62,7 @@ fn main() {
             _ => {
                 println!(
                     "taskmanager-launcher [--synthetic PROCESSES] [--fixture DIR] [--no-config] [--perf-overlay]\n\
-                     \x20                    [--hidden] [--install-meta | --uninstall-meta]"
+                     \x20                    [--hidden] [--install-activation | --uninstall-activation]"
                 );
                 std::process::exit(if matches!(arg.as_str(), "-h" | "--help") {
                     0
