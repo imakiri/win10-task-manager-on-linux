@@ -52,6 +52,8 @@ const NETWORK_LINK_UNKNOWN_HINT: &str =
     n_("Link utilization is unavailable: no usable link speed data.");
 const NAME_W: f32 = 234.;
 const VALUE_W: f32 = 72.;
+/// Own design: usage columns fit "subtree / own" of parent processes
+const USAGE_W: f32 = 2. * VALUE_W;
 const INDENT: f32 = 22.;
 /// Own design: capacities for the heat of rate columns (100 MB/s disk, 100 Mbit/s network)
 const DISK_HEAT_FULL: f32 = 100e6;
@@ -146,6 +148,11 @@ impl ProcessesPage {
                     Column::Name => NAME_W,
                     Column::GpuEngine => m::GPU_ENGINE_W,
                     Column::GpuDedicatedMemory | Column::GpuSharedMemory => m::GPU_MEMORY_W,
+                    Column::Cpu
+                    | Column::Memory
+                    | Column::Swap
+                    | Column::Drive
+                    | Column::Network => USAGE_W,
                     _ => VALUE_W,
                 })
             })
