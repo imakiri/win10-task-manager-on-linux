@@ -269,13 +269,13 @@ impl ProcessesPage {
             // Per-process network data unavailable (no nethogs or no capture permissions)
             Column::Network if table.hide_network => "—".into(),
             _ => match Self::usage_text(column, &node.stats) {
-                // Parents with child rows: own / own and every descendant
+                // Parents with child rows: with every descendant / own
                 Some(own) => match node
                     .subtree
                     .as_ref()
                     .and_then(|subtree| Self::usage_text(column, subtree))
                 {
-                    Some(subtree) => format!("{own} / {subtree}"),
+                    Some(subtree) => format!("{subtree} / {own}"),
                     None => own,
                 },
                 None => table.cell_text(column, node),
@@ -883,9 +883,9 @@ mod tests {
         let node = |key| &table.tree.nodes[table.tree.find_by_key(key).unwrap()];
         let parent = node("processes/p10");
         let text = |column| ProcessesPage::cell_text(&table, column, parent);
-        assert_eq!(text(Column::Cpu), "1.5% / 3.5%");
-        assert_eq!(text(Column::Memory), "50.0 MiB / 1.05 GiB");
-        assert_eq!(text(Column::Drive), "1 KiB/s / 2 KiB/s");
+        assert_eq!(text(Column::Cpu), "3.5% / 1.5%");
+        assert_eq!(text(Column::Memory), "1.05 GiB / 50.0 MiB");
+        assert_eq!(text(Column::Drive), "2 KiB/s / 1 KiB/s");
         // Leaves have nothing below them
         let leaf = node("processes/p10/p11");
         assert_eq!(ProcessesPage::cell_text(&table, Column::Cpu, leaf), "2.0%");
