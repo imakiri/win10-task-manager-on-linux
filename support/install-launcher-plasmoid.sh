@@ -5,7 +5,10 @@
 # Installs the fullscreen launcher for the current user on KDE Plasma 6:
 #   - taskmanager-launcher (the installed one, or built from this checkout into ~/.local/bin),
 #   - its D-Bus activation file (Meta/clicks start it on demand),
-#   - the "Task Manager Launcher" panel widget.
+#   - the "Task Manager Launcher" panel widget,
+#   - (sudo) CAP_KILL and CAP_SYS_PTRACE on missioncenter-magpie: End task for other users'
+#     processes and PSS memory of every process. The capabilities apply to the windowed Task
+#     Manager too and are lost when the package updates the file: run this script again.
 # Usage: support/install-launcher-plasmoid.sh [--build] [--uninstall]
 #   --build      build and install from this checkout even if taskmanager-launcher is installed
 
@@ -17,6 +20,16 @@ PLASMOID_ID="io.github.taskmanager.launcher"
 LOCAL_BIN="${HOME}/.local/bin/taskmanager-launcher"
 ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
 ICON="io.github.taskmanager.TaskManager.png"
+CAPS="cap_kill,cap_sys_ptrace+ep"
+
+# setcap needs the regular file, not a symlink
+magpie() {
+    local path
+    path="$(command -v missioncenter-magpie || true)"
+    if [[ -n "$path" ]]; then
+        readlink -f "$path"
+    fi
+}
 
 build=false
 uninstall=false
@@ -57,6 +70,11 @@ if $uninstall; then
     # Stop a resident launcher; nothing would start or toggle it anymore
     pkill -x taskmanager-lau 2>/dev/null || true
     rm -f "$LOCAL_BIN"
+    daemon="$(magpie)"
+    if [[ -n "$daemon" ]] && getcap "$daemon" 2>/dev/null | grep -q cap_kill; then
+        echo "Removing capabilities from $daemon (sudo)…"
+        sudo setcap -r "$daemon"
+    fi
     echo "Removed. Choose another launcher in the panel (right click → Show Alternatives)."
     exit 0
 fi
@@ -89,8 +107,15 @@ else
     kpackagetool6 --type Plasma/Applet --install "$PLASMOID"
 fi
 
-command -v missioncenter-magpie >/dev/null ||
+daemon="$(magpie)"
+if [[ -z "$daemon" ]]; then
     echo "Note: install Task Manager (it provides the missioncenter-magpie daemon) for live data." >&2
+else
+    echo "Granting $CAPS to $daemon (sudo)…"
+    sudo setcap "$CAPS" "$daemon"
+    # Secure-exec ignores $ORIGIN RUNPATHs: privately bundled GPU libraries may stop loading
+    echo "Check the GPU pages; if they are empty: sudo setcap -r $daemon" >&2
+fi
 
 cat <<EOF
 

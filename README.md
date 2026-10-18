@@ -191,6 +191,11 @@ widget (built from this checkout into `~/.local/bin` when `taskmanager-launcher`
 `--build` forces it, `--uninstall` removes everything). Choose it instead of the application menu
 (right click → Show Alternatives): Meta and a click on it then toggle the launcher over D-Bus, and
 D-Bus starts it on the first press (`taskmanager-launcher --install-activation` registers it).
+The script also asks sudo to give `missioncenter-magpie` `cap_kill,cap_sys_ptrace` (End task for
+other users' processes, PSS memory of every process; the windowed Task Manager gets them too).
+Package updates drop them; run the script again. These capabilities make the daemon a secure-exec
+binary that ignores `$ORIGIN` RUNPATHs, so privately bundled GPU libraries may stop loading: if the
+GPU pages are empty, remove them with `sudo setcap -r "$(readlink -f "$(command -v missioncenter-magpie)")"`.
 Elsewhere, bind `taskmanager-launcher` to a key in the compositor's settings.
 
 ### Peripheral batteries
