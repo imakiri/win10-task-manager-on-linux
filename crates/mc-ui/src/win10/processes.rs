@@ -52,8 +52,6 @@ const NETWORK_LINK_UNKNOWN_HINT: &str =
     n_("Link utilization is unavailable: no usable link speed data.");
 const NAME_W: f32 = 234.;
 const VALUE_W: f32 = 72.;
-/// Own design: usage columns fit "subtree / own" of parent processes
-const USAGE_W: f32 = 2. * VALUE_W;
 const INDENT: f32 = 22.;
 /// Own design: capacities for the heat of rate columns (100 MB/s disk, 100 Mbit/s network)
 const DISK_HEAT_FULL: f32 = 100e6;
@@ -148,11 +146,6 @@ impl ProcessesPage {
                     Column::Name => NAME_W,
                     Column::GpuEngine => m::GPU_ENGINE_W,
                     Column::GpuDedicatedMemory | Column::GpuSharedMemory => m::GPU_MEMORY_W,
-                    Column::Cpu
-                    | Column::Memory
-                    | Column::Swap
-                    | Column::Drive
-                    | Column::Network => USAGE_W,
                     _ => VALUE_W,
                 })
             })
@@ -275,18 +268,8 @@ impl ProcessesPage {
             Column::Pid if node.kind == RowKind::App => String::new(),
             // Per-process network data unavailable (no nethogs or no capture permissions)
             Column::Network if table.hide_network => "—".into(),
-            _ => match Self::usage_text(column, &node.stats) {
-                // Parents with child rows: with every descendant / own
-                Some(own) => match node
-                    .subtree
-                    .as_ref()
-                    .and_then(|subtree| Self::usage_text(column, subtree))
-                {
-                    Some(subtree) => format!("{subtree} / {own}"),
-                    None => own,
-                },
-                None => table.cell_text(column, node),
-            },
+            _ => Self::usage_text(column, &node.stats)
+                .unwrap_or_else(|| table.cell_text(column, node)),
         }
     }
 
@@ -885,15 +868,14 @@ mod tests {
     }
 
     #[test]
-    fn parents_show_own_and_subtree_usage() {
+    fn parents_show_one_value_with_their_descendants() {
         let table = tree_table();
         let node = |key| &table.tree.nodes[table.tree.find_by_key(key).unwrap()];
         let parent = node("processes/p10");
         let text = |column| ProcessesPage::cell_text(&table, column, parent);
-        assert_eq!(text(Column::Cpu), "3.5% / 1.5%");
-        assert_eq!(text(Column::Memory), "1.05 GiB / 50.0 MiB");
-        assert_eq!(text(Column::Drive), "2 KiB/s / 1 KiB/s");
-        // Leaves have nothing below them
+        assert_eq!(text(Column::Cpu), "3.5%");
+        assert_eq!(text(Column::Memory), "1.05 GiB");
+        assert_eq!(text(Column::Drive), "2 KiB/s");
         let leaf = node("processes/p10/p11");
         assert_eq!(ProcessesPage::cell_text(&table, Column::Cpu, leaf), "2.0%");
         assert_eq!(ProcessesPage::cell_text(&table, Column::Pid, parent), "10");

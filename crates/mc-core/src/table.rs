@@ -107,9 +107,10 @@ pub struct Node {
     pub pid: u32,
     pub command_line: String,
     pub icon: RowIcon,
+    /// Process rows in the process tree: own usage plus every descendant's.
     pub stats: ProcessUsageStats,
-    /// Process rows with child rows: own usage plus every descendant's (`stats` is own only).
-    pub subtree: Option<ProcessUsageStats>,
+    /// `stats` (and GPU) include the descendants of `pid`.
+    pub includes_descendants: bool,
     pub gpu: GpuStats,
     pub service: Option<ServiceInfo>,
     /// For app rows: every pid belonging to the app.
@@ -128,7 +129,7 @@ impl Node {
             command_line: String::new(),
             icon: RowIcon::None,
             stats: ProcessUsageStats::default(),
-            subtree: None,
+            includes_descendants: false,
             gpu: GpuStats::default(),
             service: None,
             app_pids: vec![],
@@ -457,14 +458,13 @@ impl Tree {
                 self.nodes[index].children.push(c);
             }
         }
-        if !self.nodes[index].children.is_empty() {
-            let mut subtree = self.nodes[index].stats;
-            for &child in &self.nodes[index].children {
-                let child = &self.nodes[child];
-                subtree.merge(child.subtree.as_ref().unwrap_or(&child.stats));
-            }
-            self.nodes[index].subtree = Some(subtree);
+        // Children already include their own descendants
+        let mut stats = self.nodes[index].stats;
+        for &child in &self.nodes[index].children {
+            stats.merge(&self.nodes[child].stats);
         }
+        self.nodes[index].stats = stats;
+        self.nodes[index].includes_descendants = true;
 
         Some(index)
     }
@@ -640,7 +640,7 @@ impl Tree {
             if node.kind == RowKind::SectionHeader {
                 continue;
             }
-            if node.kind == RowKind::Process {
+            if node.kind == RowKind::Process && !node.includes_descendants {
                 node.gpu = gpu
                     .processes
                     .get(&node.pid)
@@ -648,8 +648,7 @@ impl Tree {
                     .unwrap_or_else(|| gpu.aggregate([node.pid]));
                 continue;
             }
-            // Process rows show their own values; apps and services include descendants
-            let descend = node.kind != RowKind::Process;
+            // Apps and services, and processes in the process tree, include descendants
             let mut pending = if node.kind == RowKind::App {
                 node.app_pids.clone()
             } else {
@@ -658,7 +657,6 @@ impl Tree {
             let mut pids = HashSet::new();
             while let Some(pid) = pending.pop() {
                 if pids.insert(pid)
-                    && descend
                     && let Some(process) = readings.running_processes.get(&pid)
                 {
                     pending.extend(process.children.iter().copied());
@@ -1108,16 +1106,13 @@ mod tests {
     }
 
     #[test]
-    fn process_rows_with_children_carry_their_subtree_totals() {
+    fn process_rows_include_their_descendants() {
         let tree = Tree::apps(&readings());
         let firefox = &tree.nodes[tree.find_by_key("processes/p10").unwrap()];
-        // own usage stays the process's own
-        assert!((firefox.stats.cpu_usage - 5.).abs() < 1e-4);
-        let subtree = firefox.subtree.expect("firefox has children");
-        assert!((subtree.cpu_usage - 10.).abs() < 1e-4);
-        assert_eq!(subtree.memory_usage, 10_000 + 11_000 + 12_000);
+        assert!((firefox.stats.cpu_usage - 10.).abs() < 1e-4);
+        assert_eq!(firefox.stats.memory_usage, 10_000 + 11_000 + 12_000);
         let leaf = &tree.nodes[tree.find_by_key("processes/p10/p11").unwrap()];
-        assert!(leaf.subtree.is_none());
+        assert!((leaf.stats.cpu_usage - 2.).abs() < 1e-4);
     }
 
     #[test]
