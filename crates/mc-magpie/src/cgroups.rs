@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-//! Control group of each process for the Processes tab's app groups: the cgroup v2 path from
+//! Control group of each of the user's processes for the Processes tab's Apps section: the cgroup v2 path from
 //! `/proc/<pid>/cgroup`. Runs on the gatherer thread only. Read every cycle (no cache): desktops
 //! move a freshly started app into its own scope right after launch.
 
@@ -20,11 +20,18 @@ pub fn parse_cgroup(text: &str) -> Option<&str> {
 
 pub struct CgroupReader {
     root: PathBuf,
+    /// Only paths in this user's session manager tree (`/user@UID.service/`)
+    user: Option<String>,
 }
 
 impl Default for CgroupReader {
     fn default() -> Self {
-        Self::with_root("/")
+        // SAFETY: getuid cannot fail
+        let uid = unsafe { libc::getuid() };
+        Self {
+            user: Some(format!("/user@{uid}.service/")),
+            ..Self::with_root("/")
+        }
     }
 }
 
@@ -33,16 +40,20 @@ impl CgroupReader {
     pub fn with_root(root: impl AsRef<Path>) -> Self {
         Self {
             root: root.as_ref().to_owned(),
+            user: None,
         }
     }
 
-    /// `pid → cgroup path` for `processes`; unreadable or v1-only entries are left out.
+    /// `pid → cgroup path` for `processes`; unreadable or v1-only entries and other users'
+    /// processes are left out.
     pub fn read(&self, processes: &HashMap<u32, Process>) -> HashMap<u32, String> {
         let mut out = HashMap::with_capacity(processes.len());
         for &pid in processes.keys() {
             let file = self.root.join(format!("proc/{pid}/cgroup"));
             let text = std::fs::read_to_string(file).unwrap_or_default();
-            if let Some(path) = parse_cgroup(&text) {
+            let path = parse_cgroup(&text)
+                .filter(|path| self.user.as_deref().is_none_or(|user| path.contains(user)));
+            if let Some(path) = path {
                 out.insert(pid, path.to_owned());
             }
         }

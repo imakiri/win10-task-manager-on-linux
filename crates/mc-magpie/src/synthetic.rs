@@ -328,6 +328,12 @@ pub fn synthetic_readings(step: usize, process_count: usize) -> Readings {
                     pids: vec![pid],
                 },
             );
+            r.process_cgroups.insert(
+                pid,
+                format!(
+                    "/user.slice/user-1000.slice/user@1000.service/app.slice/app-{id}-{pid}.scope"
+                ),
+            );
         }
     }
 

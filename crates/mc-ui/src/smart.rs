@@ -301,11 +301,9 @@ pub fn eject_failure(
     type Blockers = Vec<(u32, Vec<String>)>;
     let mut groups: BTreeMap<String, (Option<mc_core::table::RowIcon>, Blockers)> = BTreeMap::new();
     for blocker in &error.blockers {
-        let app = apps
-            .tree()
-            .nodes
-            .iter()
-            .find(|n| n.kind == RowKind::App && n.app_pids.contains(&blocker.pid));
+        let app = apps.tree().nodes.iter().find(|n| {
+            matches!(n.kind, RowKind::App | RowKind::Cgroup) && n.app_pids.contains(&blocker.pid)
+        });
         let entry = groups
             .entry(app.map(|a| a.name.clone()).unwrap_or_default())
             .or_insert((app.map(|a| a.icon.clone()), vec![]));

@@ -71,7 +71,7 @@ pub struct Readings {
     /// Owner of each process (`pid → user name`), read from `/proc` by the gatherer
     #[serde(default)]
     pub process_users: HashMap<u32, String>,
-    /// Control group of each process (`pid → cgroup v2 path`), read from `/proc` by the gatherer
+    /// Control group of each of the user's processes (`pid → cgroup v2 path`), read by the gatherer
     #[serde(default)]
     pub process_cgroups: HashMap<u32, String>,
     /// Per-process network usage could not be measured (netlink `sock_diag` unavailable). When
